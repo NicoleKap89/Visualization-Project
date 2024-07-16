@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
 # Title
@@ -10,6 +11,7 @@ st.title("World Cup Comparisons Graph Presentation")
 st.markdown("""
 The World Cup is one of the most prestigious and widely viewed sporting events globally, bringing together teams from various countries to compete at the highest level of international football. Performance metrics such as goals, assists, and defensive actions are crucial in evaluating both individual and team performances. Understanding these metrics can provide valuable insights into team consistency, team strategies, player contributions, and overall team effectiveness across different tournaments.
 """)
+
 
 @st.cache_data
 def load_data():
@@ -31,13 +33,12 @@ def load_data():
     # Calculate the performance metric as the sum of the specified metrics
     data['performance'] = data[metrics_columns].sum(axis=1)
     data['attack_metrics'] = data[['goals_z', 'xg_z', 'crosses_z', 'boxtouches_z']].sum(axis=1)
-    data['defense_metrics'] = data[['tackles_z', 'interceptions_z', 'clearances_z', 'blocks_z', 'aerials_z']].sum(axis=1)
+    data['defense_metrics'] = data[['tackles_z', 'interceptions_z', 'clearances_z', 'blocks_z', 'aerials_z']].sum(
+        axis=1)
     data['passing_metrics'] = data[['passes_z', 'progpasses_z', 'takeons_z', 'progruns_z']].sum(axis=1)
 
     return data
 
-
-data = load_data()
 
 # Filter Data
 def filtered_data(data, above_x_teams=0, above_y_players=0):
@@ -56,19 +57,24 @@ def filtered_data(data, above_x_teams=0, above_y_players=0):
     # Filter teams
     if above_x_teams > 0:
         teams_in_multiple_seasons = data.groupby('team')['season'].nunique()
-        teams_in_multiple_seasons = teams_in_multiple_seasons[teams_in_multiple_seasons > above_x_teams].index
+        teams_in_multiple_seasons = teams_in_multiple_seasons[teams_in_multiple_seasons >= above_x_teams].index
         data = data[data['team'].isin(teams_in_multiple_seasons)]
 
     # Filter players
     if above_y_players > 0:
         players_in_multiple_seasons = data.groupby('player')['season'].nunique()
-        players_in_multiple_seasons = players_in_multiple_seasons[players_in_multiple_seasons > above_y_players].index
+        players_in_multiple_seasons = players_in_multiple_seasons[players_in_multiple_seasons >= above_y_players].index
         data = data[data['player'].isin(players_in_multiple_seasons)]
 
     return data
 
+data = load_data()
 
-# Graph 1:
+
+
+
+
+# Pre Process For Graph 1:
 st.header("Trend of Attack, Defense, and Passing Metrics for Teams Across World Cup Seasons")
 # Filter teams that participated in 8 or more seasons
 filtered_data_teams_1 = filtered_data(data, above_x_teams=8)
@@ -94,7 +100,7 @@ selected_teams = st.multiselect('Select Teams', options=teams_with_all_option, d
 selected_metrics = st.multiselect('Select Metrics', options=metrics, default=metrics)
 
 
-def update_plot(selected_teams, selected_metrics):
+def create_update_plot1(selected_teams, selected_metrics):
     # Handle 'All Teams' option
     if 'All Teams' in selected_teams:
         selected_teams = teams  # Select all teams
@@ -103,7 +109,7 @@ def update_plot(selected_teams, selected_metrics):
     filtered_trend = team_metrics_trend[team_metrics_trend['team'].isin(selected_teams)]
 
     # Plot using Seaborn FacetGrid
-    g = sns.FacetGrid(filtered_trend, col='team', col_wrap=4, height=4, aspect=1.5, sharey=False)
+    g = sns.FacetGrid(filtered_trend, col='team', col_wrap=4, height=4.5, aspect=1.5, sharey=False)
 
     if 'attack_metrics' in selected_metrics:
         g.map_dataframe(sns.lineplot, x='season', y='attack_metrics', marker='o', color=colors['attack_metrics'],
@@ -116,7 +122,7 @@ def update_plot(selected_teams, selected_metrics):
                         label='Passing Metrics')
 
     # Add title and labels with increased font sizes
-    g.fig.suptitle('Trend of Attack, Defense, and Passing Metrics for Teams Across World Cup Seasons', fontsize=28)
+    g.fig.suptitle('Trend of Attack, Defense, and Passing Metrics for Teams Appearing in 8 Or More World Cup Seasons', fontsize=28)
     g.set_axis_labels('World Cup Season (Year)', 'Metrics', fontsize=18)
 
     # Adjust subplot titles
@@ -135,17 +141,22 @@ def update_plot(selected_teams, selected_metrics):
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     st.pyplot(g.fig)
 
-# Update plot based on user selection
-update_plot(selected_teams, selected_metrics)
 
+# Create and Update plot based on user selection
+create_update_plot1(selected_teams, selected_metrics)
+
+
+
+
+# Pre Process For Graph 2:
 st.header("Mean Goals Metric for Teams Across World Cup Seasons")
 filtered_data = filtered_data(data, above_x_teams=8)
-def graph2():
-    # Find teams that appear in more than 5 seasons
+def create_update_plot2():
+    # Find teams that appear in more than 8 seasons
 
     # Define bins (intervals for seasons)
     bins = [1966, 1970, 1980, 1990, 2000, 2010, 2020]  # Adjusted bins to start from 1966
-    bin_labels = [f'{start}-{end-1}' for start, end in zip(bins[:-1], bins[1:])]
+    bin_labels = [f'{start}-{end - 1}' for start, end in zip(bins[:-1], bins[1:])]
 
     # Bin the seasons
     filtered_data['season_bin'] = pd.cut(filtered_data['season'], bins=bins, labels=bin_labels, right=False)
@@ -154,19 +165,20 @@ def graph2():
     team_xg_mean_bins = filtered_data.groupby(['team', 'season_bin'])['goals_z'].mean().reset_index()
 
     # Streamlit selectors
-    selected_teams = st.multiselect('Select Teams', options=filtered_data['team'].unique(), default=filtered_data['team'].unique())
+    selected_teams = st.multiselect('Select Teams', options=filtered_data['team'].unique(),
+                                    default=filtered_data['team'].unique())
 
     # Filter data based on selected teams
     filtered_team_data = team_xg_mean_bins[team_xg_mean_bins['team'].isin(selected_teams)]
 
     # Plot the line plot
-    fig, ax = plt.subplots(figsize=(14, 8))
+    fig, ax = plt.subplots(figsize=(14, 6))
 
     # Use seaborn lineplot for the visualization
     sns.lineplot(x='season_bin', y='goals_z', hue='team', data=filtered_team_data, marker='o', ax=ax)
 
     # Add title and labels
-    ax.set_title('Change in Mean Goals Metric for Teams Appearing in More Than 5 World Cup Seasons (Binned)')
+    ax.set_title('Change in Mean Goals Metric for Teams Appearing in 8 Or More World Cup Seasons (Binned)')
     ax.set_xlabel('Season Bin')
     ax.set_ylabel('Mean Goals_z')
 
@@ -176,19 +188,22 @@ def graph2():
     # Show plot
     st.pyplot(fig)
 
-graph2()
+create_update_plot2()
 
 
 
+
+
+# Pre Process For Graph 3:
 st.header("Preformance HeatMap for Players across the Years")
 # Dropdown options for teams
 team_options = data['team'].unique()
 # Streamlit selectors
 selected_team = st.selectbox('Select Team', options=team_options)
 
+
 # Function to update the heatmap based on dropdown selection
-# Function to update the heatmap based on dropdown selection
-def update_heatmap(selected_team):
+def create_update_heatmap(selected_team):
     # Filter data for the selected team
     team_data = data[data['team'] == selected_team]
 
@@ -214,12 +229,6 @@ def update_heatmap(selected_team):
     return fig
 
 
-# Update plot based on user selection
-heatmap_figure = update_heatmap(selected_team)
+# Create and Update plot based on user selection
+heatmap_figure = create_update_heatmap(selected_team)
 st.plotly_chart(heatmap_figure, use_container_width=True)
-
-
-
-
-
-
